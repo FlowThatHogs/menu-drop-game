@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Menu Drop - 점심/저녁 메뉴 게임</title>
+  <style>
+    :root{--bg1:#fff8f5;--bg2:#eef6ff;--line:#d8ccff;--text:#3f365a;--mint:#b8f2e6;--lav:#d8c8ff;--peach:#ffd8c7}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Pretendard,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;background:radial-gradient(circle at 20% 10%,var(--bg1),#f7f4ff 45%,var(--bg2));color:var(--text);min-height:100vh;display:flex;justify-content:center;align-items:center;padding:16px}
+    .app{width:min(1100px,97vw);background:#ffffffd9;border:2px solid var(--line);border-radius:22px;box-shadow:0 18px 46px #9c91ca44;padding:16px}
+    .top{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin-bottom:12px}
+    h1{margin:0;font-size:clamp(20px,3.5vw,30px)}
+    .pill{display:inline-flex;background:#fff;border:2px solid var(--line);border-radius:999px;padding:6px;gap:6px}
+    .pill button{border:0;background:transparent;border-radius:999px;padding:8px 14px;font-weight:800;cursor:pointer;color:#5c5276}
+    .pill button.active{background:linear-gradient(90deg,var(--lav),var(--mint));color:#2f2846}
+    .grid{display:grid;grid-template-columns:1.25fr .75fr;gap:14px}
+    .panel{background:#fff;border:2px solid var(--line);border-radius:16px;padding:12px}
+    canvas{width:100%;aspect-ratio:4/5;border-radius:14px;border:3px solid #cfc2ff;background:linear-gradient(180deg,#fff9ff,#eef7ff);display:block;max-height:86vh}
+    .controls{display:grid;gap:10px;margin-top:10px}
+    .label{font-size:13px;font-weight:800;opacity:.85}.row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+    .btn{border:0;border-radius:12px;padding:10px 14px;font-size:14px;font-weight:800;cursor:pointer}
+    .btn.main{background:linear-gradient(90deg,var(--peach),var(--lav))}.btn.sub{background:#eff6ff;border:1px solid #cfe2ff}
+    textarea{width:100%;min-height:110px;resize:vertical;border-radius:10px;border:2px solid #e1d8ff;padding:10px;font-size:14px}
+    .result{margin-top:10px;border:2px dashed #d7cdff;border-radius:12px;padding:12px;background:linear-gradient(180deg,#fff,#f8f4ff);min-height:72px}
+    .winner{font-size:clamp(22px,3.6vw,34px);font-weight:900}.small{font-size:12px;opacity:.8;line-height:1.4}
+    .pressBtn.active{transform:translateY(1px);filter:saturate(1.15)}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <h1>🍽️ Menu Drop (점심/저녁 메뉴 결정)</h1>
+    <div class="pill" id="modePill"><button data-mode="lunch" class="active">점심</button><button data-mode="dinner">저녁</button></div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <canvas id="board" width="1200" height="1500"></canvas>
+      <div class="controls">
+        <div class="row"><span class="label">파워 (길게 눌러 충전)</span><strong id="powerHint">준비</strong></div>
+        <div class="row"><button class="btn main pressBtn" id="pressShoot">🎯 길게 눌러 발사</button><button class="btn sub" id="resetBtn">리셋</button></div>
+        <div class="small">속도 80%로 조정 · 곡선 발사관 · 긴 맵(스크롤 추적) · 회전 장애물 · 파워에 비례해 상승</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="label">메뉴 후보 (쉼표 구분)</div>
+      <textarea id="menuInput"></textarea>
+      <div class="result" id="resultBox"><div class="small">결과가 여기에 표시돼.</div></div>
+      <div class="small" style="margin-top:8px">추천: 메뉴 6~10개</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const lunchPreset=["김치찌개","국밥","돈까스","비빔밥","쌀국수","샐러드","제육덮밥","파스타"];
+const dinnerPreset=["삼겹살","치킨","마라탕","샤브샤브","회","피자","떡볶이","족발"];
+const canvas=document.getElementById('board'),ctx=canvas.getContext('2d');
+const vw=canvas.width,vh=canvas.height;
+
+const WORLD={left:120,right:1020,top:70,bottom:5200,height:5200}; // 플레이 맵, 관은 바깥 배치
+const menuInput=document.getElementById('menuInput');
+const modePill=document.getElementById('modePill');
+const resultBox=document.getElementById('resultBox');
+const resetBtn=document.getElementById('resetBtn');
+const powerHint=document.getElementById('powerHint');
+const pressShoot=document.getElementById('pressShoot');
+
+let mode='lunch',pegs=[],slots=[],spinners=[],leftBumpers=[];
+let ball=null,running=false,phase='idle';
+let holdStart=0,holdPower=0,holdVisual=0,cameraY=0,targetCameraY=0;
+
+function menus(){return menuInput.value.split(',').map(s=>s.trim()).filter(Boolean).slice(0,12)}
+function setMode(m){
+  mode=m; [...modePill.querySelectorAll('button')].forEach(b=>b.classList.toggle('active',b.dataset.mode===m));
+  menuInput.value=(m==='lunch'?lunchPreset:dinnerPreset).join(', ');
+  buildSlots(); reset(); clearResult();
+}
+function buildSlots(){slots=menus(); if(!slots.length) slots=['메뉴없음']}
+function clearResult(){resultBox.innerHTML='<div class="small">결과가 여기에 표시돼.</div>'}
+function showResult(t){resultBox.innerHTML=`<div class="small">오늘의 ${mode==='lunch'?'점심':'저녁'}</div><div class="winner">${t}</div>`}
+
+function buildPegs(){
+  pegs=[];
+  const rows=32,rowGap=178,colGap=142,startY=340;
+  for(let r=0;r<rows;r++){
+    if(r<3) continue; // 관 출구 아래 3줄 비워서 걸림 완화
+    const y=startY+r*rowGap;
+    if(y>WORLD.bottom-620) continue; // 하단 진입 방해 구간 더 크게 제거
+    const count=4+(r%5===0?1:0); // 훨씬 더 듬성하게
+    const rowWidth=(count-1)*colGap;
+    const center=(WORLD.left+WORLD.right)/2 + (r%2?8:-8);
+    let startX=center-rowWidth/2;
+    startX=Math.max(WORLD.left+20,Math.min(startX,WORLD.right-rowWidth-20));
+    for(let c=0;c<count;c++){
+      const bouncy=((r+c)%6===0);
+      pegs.push({x:startX+c*colGap,y,r:6,bouncy});
+    }
+  }
+}
+function buildSpinners(){
+  spinners=[];
+  const ys=[760,1780,2920,4060]; // 간격 대폭 증가
+  ys.forEach((y,i)=>{spinners.push({x:(WORLD.left+WORLD.right)/2 + (i%2?120:-120),y,len:95,ang:i*0.7,speed:(i%2?0.028:-0.024),r:8})});
+}
+function buildExtraObstacles(){
+  // 왼쪽 벽 쪽 탄성 범퍼들
+  leftBumpers=[];
+  const ys=[520,980,1460,2040,2620,3200,3780];
+  ys.forEach((y,i)=>leftBumpers.push({x:WORLD.left+48+(i%2?18:0),y,r:16+(i%3===0?3:0)}));
+}
+
+function reset(){
+  ball={x:WORLD.right+40,y:WORLD.bottom-190,r:44,vx:0,vy:0,active:false,power:0,ang:0,t:0,rot:0,rotVel:0};
+  running=false; phase='idle'; cameraY=WORLD.bottom-vh-20; targetCameraY=cameraY;
+  holdVisual=0.05; powerHint.textContent='준비';
+}
+
+function startLaunch(power){
+  if(running) return;
+  buildSlots(); clearResult();
+  const p=power/100;
+  ball={x:WORLD.right+40,y:WORLD.bottom-190,r:44,vx:0,vy:0,active:true,power:p,ang:0,t:0,tubeV:(0.0082+0.0172*p),rot:0,rotVel:0};
+  running=true; phase='tube';
+}
+
+function tubePos(t){
+  // 거의 ㄱ자: 맵 바깥 수직관 + 상단 짧은 가로 구간(맵 폭의 약 1/4)
+  const x0=WORLD.right+40,y0=WORLD.bottom-190;
+  const turnY=420;
+  if(t<0.94){
+    const k=t/0.94;
+    return {x:x0,y:y0-(y0-turnY)*k};
+  }
+  const k=(t-0.94)/0.06;
+  const p0={x:x0,y:turnY},p1={x:WORLD.right+18,y:345},p2={x:WORLD.right-160,y:220};
+  const u=1-k;
+  const x=u*u*p0.x+2*u*k*p1.x+k*k*p2.x;
+  const y=u*u*p0.y+2*u*k*p1.y+k*k*p2.y;
+  return {x,y};
+}
+
+function physics(){
+  spinners.forEach(s=>s.ang+=s.speed);
+  if(!ball?.active){
+    // 비활성 상태에서도 시작 지점으로 카메라 복귀
+    const homeCam=Math.max(WORLD.top,Math.min(WORLD.bottom-vh,(WORLD.bottom-190)-vh*0.62));
+    targetCameraY=homeCam;
+    cameraY += (targetCameraY-cameraY)*0.28;
+    return;
+  }
+
+  if(phase==='tube'){
+    // 관 내부 1D 물리: 초기 상승속도 -> 중력으로 감속 -> 정점 후 하강
+    const tubeGravity=0.00019;
+    ball.t += ball.tubeV;
+    ball.tubeV -= tubeGravity;
+
+    const p=tubePos(Math.max(0,Math.min(ball.t,1))); ball.x=p.x; ball.y=p.y;
+
+    if(ball.t>=1){
+      phase='drop';
+      const base=9.6*(0.8); // 전체 속도 80%
+      const speed=(4.2+ball.power*base);
+      ball.vx=-(Math.cos(ball.ang)*speed);
+      ball.vy=(Math.sin(ball.ang)*speed);
+      ball.x=WORLD.right-160; ball.y=220;
+    } else if(ball.t<=0 && ball.tubeV<0){
+      // 관에서 다시 바닥으로 복귀
+      ball.t=0;
+      ball.active=false; running=false; phase='idle';
+      holdVisual=0.05; powerHint.textContent='준비';
+    }
+  } else {
+    ball.vy += 0.195; // 이전 대비 낮춤
+    ball.vx *= 0.998;
+    ball.x += ball.vx; ball.y += ball.vy;
+
+    // natural roll-like rotation
+    ball.rotVel += (ball.vx*0.0009);
+    ball.rotVel *= 0.985;
+    ball.rot += ball.rotVel;
+
+    if(ball.x<WORLD.left+ball.r){ball.x=WORLD.left+ball.r; ball.vx*=-0.86}
+    if(ball.x>WORLD.right-ball.r){ball.x=WORLD.right-ball.r; ball.vx*=-0.86}
+    if(ball.y<WORLD.top+ball.r){ball.y=WORLD.top+ball.r; ball.vy*=-0.78}
+
+    for(const peg of pegs){
+      const dx=ball.x-peg.x,dy=ball.y-peg.y,d=Math.hypot(dx,dy),md=ball.r+peg.r;
+      if(d<md && d>0.001){
+        const nx=dx/d,ny=dy/d;
+        ball.x=peg.x+nx*md; ball.y=peg.y+ny*md;
+        const dot=ball.vx*nx+ball.vy*ny;
+        // 튀는/안튀는 장애물 분리
+        const restitution=peg.bouncy?0.78:0.28;
+        ball.vx = (ball.vx-(1+restitution)*dot*nx) * (peg.bouncy?0.96:0.90);
+        ball.vy = (ball.vy-(1+restitution)*dot*ny) * (peg.bouncy?0.96:0.90);
+        ball.rotVel += (peg.bouncy?0.045:0.02) * (nx>0?1:-1);
+      }
+    }
+
+    for(const s of spinners){
+      const ax=s.x+Math.cos(s.ang)*s.len, ay=s.y+Math.sin(s.ang)*s.len;
+      const bx=s.x-Math.cos(s.ang)*s.len, by=s.y-Math.sin(s.ang)*s.len;
+      // point-line distance
+      const abx=bx-ax,aby=by-ay, apx=ball.x-ax,apy=ball.y-ay;
+      const t=Math.max(0,Math.min(1,(apx*abx+apy*aby)/(abx*abx+aby*aby)));
+      const cx=ax+abx*t, cy=ay+aby*t;
+      const dx=ball.x-cx, dy=ball.y-cy, dist=Math.hypot(dx,dy);
+      const hitR=ball.r+s.r;
+      if(dist<hitR && dist>0.0001){
+        const nx=dx/dist, ny=dy/dist;
+        ball.x=cx+nx*hitR; ball.y=cy+ny*hitR;
+        const dot=ball.vx*nx+ball.vy*ny;
+        ball.vx-=2*dot*nx; ball.vy-=2*dot*ny;
+        ball.vx += Math.cos(s.ang+Math.PI/2)*0.9;
+        ball.vy += Math.sin(s.ang+Math.PI/2)*0.9;
+        ball.vx*=0.95; ball.vy*=0.95;
+      }
+    }
+
+    // 왼쪽 범퍼: 명확히 튀는 타입
+    for(const b of leftBumpers){
+      const dx=ball.x-b.x,dy=ball.y-b.y,d=Math.hypot(dx,dy),md=ball.r+b.r;
+      if(d<md && d>0.001){
+        const nx=dx/d,ny=dy/d;
+        ball.x=b.x+nx*md; ball.y=b.y+ny*md;
+        const dot=ball.vx*nx+ball.vy*ny;
+        ball.vx=(ball.vx-1.7*dot*nx)*1.02;
+        ball.vy=(ball.vy-1.7*dot*ny)*1.02;
+      }
+    }
+
+    // slow field removed
+
+    // slot separator collisions near bottom
+    const slotTop=WORLD.bottom-140;
+    const slotWallTop=slotTop-160;
+    if(ball.y>slotWallTop){
+      const slotW=(WORLD.right-WORLD.left)/slots.length;
+      for(let i=1;i<slots.length;i++){
+        const sx=WORLD.left+i*slotW;
+        if(Math.abs(ball.x-sx)<ball.r+3 && ball.y<slotTop+120){
+          if(ball.x<sx){ ball.x=sx-(ball.r+3); }
+          else { ball.x=sx+(ball.r+3); }
+          ball.vx*=-0.72;
+        }
+      }
+    }
+
+    const finishY=WORLD.bottom-20;
+    // 슬롯 영역에 들어오면 멈춤 상태를 기다리지 않고 확정
+    if(ball.y>=finishY || (ball.y>slotTop+20 && Math.abs(ball.vy)<1.2)){
+      ball.y=finishY;
+      finish();
+    }
+  }
+
+  targetCameraY=Math.max(WORLD.top,Math.min(WORLD.bottom-vh,ball.y-vh*0.62));
+  cameraY += (targetCameraY-cameraY)*0.30;
+}
+
+function finish(){
+  ball.active=false; running=false;
+  powerHint.textContent='준비';
+  const xNorm=Math.max(0,Math.min(1,(ball.x-WORLD.left)/(WORLD.right-WORLD.left)));
+  const idx=Math.max(0,Math.min(slots.length-1,Math.floor(xNorm*slots.length)));
+  showResult(slots[idx]);
+}
+
+function draw(){
+  ctx.clearRect(0,0,vw,vh);
+  const g=ctx.createLinearGradient(0,0,0,vh); g.addColorStop(0,'#fff9ff'); g.addColorStop(1,'#edf7ff');
+  ctx.fillStyle=g; ctx.fillRect(0,0,vw,vh);
+
+  ctx.save();
+  ctx.translate(0,-cameraY);
+
+  // main frame
+  ctx.lineWidth=8; ctx.strokeStyle='#bfaeff';
+  ctx.strokeRect(WORLD.left,WORLD.top,WORLD.right-WORLD.left,WORLD.bottom-WORLD.top);
+
+  // ㄱ자 튜브(맵 바깥): 거의 수직 상승 후 상단 짧은 좌회전
+  const tubeX=WORLD.right+40, turnY=420;
+  ctx.strokeStyle='#bcaaff'; ctx.lineWidth=62; ctx.lineCap='round';
+  ctx.beginPath();
+  ctx.moveTo(tubeX,WORLD.bottom-190);
+  ctx.lineTo(tubeX,turnY);
+  ctx.quadraticCurveTo(WORLD.right+18,345,WORLD.right-160,220);
+  ctx.stroke();
+  ctx.strokeStyle='#efe8ff'; ctx.lineWidth=40;
+  ctx.beginPath();
+  ctx.moveTo(tubeX,WORLD.bottom-190);
+  ctx.lineTo(tubeX,turnY);
+  ctx.quadraticCurveTo(WORLD.right+18,345,WORLD.right-160,220);
+  ctx.stroke();
+
+  // pegs (튀는/안튀는 타입)
+  for(const p of pegs){
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    ctx.fillStyle=p.bouncy?'#ffb8c4':'#d8cdff';
+    ctx.fill();
+  }
+
+  // spinners
+  for(const s of spinners){
+    const ax=s.x+Math.cos(s.ang)*s.len, ay=s.y+Math.sin(s.ang)*s.len;
+    const bx=s.x-Math.cos(s.ang)*s.len, by=s.y-Math.sin(s.ang)*s.len;
+    ctx.strokeStyle='#ffb7b7'; ctx.lineWidth=10; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
+    ctx.beginPath(); ctx.arc(s.x,s.y,9,0,Math.PI*2); ctx.fillStyle='#ffcfd2'; ctx.fill();
+  }
+
+  // left wall bumpers
+  for(const b of leftBumpers){
+    ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
+    ctx.fillStyle='#ff9eb6'; ctx.fill();
+    ctx.strokeStyle='#ff7ea0'; ctx.lineWidth=2; ctx.stroke();
+  }
+
+  // no slow fields
+
+  // slots bottom (taller)
+  const slotTop=WORLD.bottom-140, laneW=WORLD.right-WORLD.left, slotW=laneW/slots.length;
+  for(let i=0;i<slots.length;i++){
+    const x=WORLD.left+i*slotW;
+    ctx.fillStyle=i%2?'#ffe8dc':'#dff3ff'; ctx.fillRect(x,slotTop,slotW,120);
+    ctx.strokeStyle='#b7a8ff'; ctx.lineWidth=3; ctx.strokeRect(x,slotTop,slotW,120);
+    ctx.fillStyle='#3d355a'; ctx.font='bold 28px sans-serif'; ctx.textAlign='center';
+    const t=slots[i].length>5?slots[i].slice(0,5)+'…':slots[i]; ctx.fillText(t,x+slotW/2,slotTop+72);
+  }
+  // visible separators (extend upward so collisions feel natural)
+  ctx.strokeStyle='#b7a8ff';
+  ctx.lineWidth=6;
+  for(let i=1;i<slots.length;i++){
+    const sx=WORLD.left+i*slotW;
+    ctx.beginPath();
+    ctx.moveTo(sx,slotTop-160);
+    ctx.lineTo(sx,slotTop+120);
+    ctx.stroke();
+  }
+
+  // angle indicator near start
+  // launcher flame power indicator (10 steps, no numbers)
+  const flameBaseX=WORLD.right+40;
+  const flameBaseY=WORLD.bottom-145;
+  const level=Math.max(1,Math.min(10,Math.round(holdVisual*10)));
+  ctx.save();
+  ctx.translate(flameBaseX,flameBaseY);
+
+  // burner nozzle hint
+  ctx.fillStyle='#d8c8ff';
+  ctx.beginPath();
+  ctx.roundRect(-12,-8,24,10,4);
+  ctx.fill();
+
+  // step flames
+  for(let i=0;i<level;i++){
+    const h=9 + i*7.5;
+    const w=11 + i*1.5; // 좌우 더 넓게
+    const y=6 + i*5;
+    const a=0.28 + i*0.065;
+    const grad=ctx.createLinearGradient(0,y,0,y+h);
+    grad.addColorStop(0,`rgba(255,245,165,${Math.min(1,a+0.2)})`);
+    grad.addColorStop(0.55,`rgba(255,168,96,${Math.min(1,a)})`);
+    grad.addColorStop(1,`rgba(255,102,145,${Math.min(1,a-0.05)})`);
+    ctx.fillStyle=grad;
+    ctx.beginPath();
+    ctx.moveTo(0,y+h);
+    ctx.quadraticCurveTo(w,y+h*0.45,0,y);
+    ctx.quadraticCurveTo(-w,y+h*0.45,0,y+h);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  ctx.restore();
+
+  // duck face ball (rotates with movement)
+  if(ball){
+    ctx.save();
+    ctx.translate(ball.x,ball.y);
+    ctx.rotate(ball.rot||0);
+
+    // head (white duck)
+    ctx.beginPath();
+    ctx.arc(0,0,ball.r,0,Math.PI*2);
+    const dg=ctx.createRadialGradient(-6,-8,2,0,0,ball.r+3);
+    dg.addColorStop(0,'#ffffff');
+    dg.addColorStop(1,'#eef1ff');
+    ctx.fillStyle=dg;
+    ctx.fill();
+    ctx.strokeStyle='#cfd6ee';
+    ctx.lineWidth=2;
+    ctx.stroke();
+
+    // eyes (smaller, dumber look)
+    ctx.fillStyle='#2f2b38';
+    ctx.beginPath(); ctx.arc(-7,-4.5,2.1,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(7,-4.5,2.1,0,Math.PI*2); ctx.fill();
+
+    // beak (bigger)
+    ctx.fillStyle='#ff9f6e';
+    ctx.beginPath();
+    ctx.ellipse(0,5,9.5,5.8,0,0,Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle='#f08d58';
+    ctx.lineWidth=1.4;
+    ctx.stroke();
+
+    // cheek blush (farther from beak)
+    ctx.fillStyle='rgba(255,150,180,0.32)';
+    ctx.beginPath(); ctx.arc(-16,9,3.4,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(16,9,3.4,0,Math.PI*2); ctx.fill();
+
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+function loop(){physics();draw();requestAnimationFrame(loop)}
+
+modePill.addEventListener('click',e=>{const b=e.target.closest('button[data-mode]'); if(b) setMode(b.dataset.mode)});
+menuInput.addEventListener('change',()=>{buildSlots();draw()});
+resetBtn.addEventListener('click',()=>{buildSlots();reset();clearResult()});
+
+function pressStart(ev){if(running)return;ev.preventDefault();holdStart=performance.now();holdPower=0;holdVisual=0.05;powerHint.textContent='충전 중';pressShoot.classList.add('active');const tick=()=>{if(!holdStart)return;const dt=performance.now()-holdStart;holdPower=Math.min(100,Math.floor((dt/950)*100));holdVisual=Math.max(0.05,holdPower/100);if(holdPower<100)requestAnimationFrame(tick)};requestAnimationFrame(tick)}
+function pressEnd(ev){if(!holdStart)return;ev.preventDefault();const dt=performance.now()-holdStart;holdStart=0;pressShoot.classList.remove('active');holdPower=Math.max(8,Math.min(100,Math.floor((dt/950)*100)));holdVisual=Math.max(0.05,holdPower/100);powerHint.textContent='발사';startLaunch(holdPower)}
+['mousedown','touchstart','pointerdown'].forEach(evt=>pressShoot.addEventListener(evt,pressStart,{passive:false}));
+['mouseup','mouseleave','touchend','pointerup','pointercancel'].forEach(evt=>pressShoot.addEventListener(evt,pressEnd,{passive:false}));
+
+buildPegs();buildSpinners();buildExtraObstacles();setMode('lunch');loop();
+</script>
+</body>
+</html>
