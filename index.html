@@ -99,19 +99,19 @@ function showResult(t){resultBox.innerHTML=`<div class="small">오늘의 ${mode=
 
 function buildPegs(){
   pegs=[];
-  const rows=32,rowGap=178,colGap=142,startY=340;
+  const rows=28,rowGap=196,colGap=172,startY=360;
   for(let r=0;r<rows;r++){
     if(r<3) continue; // 관 출구 아래 3줄 비워서 걸림 완화
     const y=startY+r*rowGap;
     if(y>WORLD.bottom-620) continue; // 하단 진입 방해 구간 더 크게 제거
-    const count=4+(r%5===0?1:0); // 훨씬 더 듬성하게
+    const count=6+(r%6===0?1:0); // 좌우까지 퍼지게
     const rowWidth=(count-1)*colGap;
-    const center=(WORLD.left+WORLD.right)/2 + (r%2?8:-8);
+    const center=(WORLD.left+WORLD.right)/2 + (r%2?20:-20);
     let startX=center-rowWidth/2;
-    startX=Math.max(WORLD.left+20,Math.min(startX,WORLD.right-rowWidth-20));
+    startX=Math.max(WORLD.left+6,Math.min(startX,WORLD.right-rowWidth-6));
     for(let c=0;c<count;c++){
       const bouncy=((r+c)%6===0);
-      pegs.push({x:startX+c*colGap,y,r:6,bouncy});
+      pegs.push({x:startX+c*colGap,y,r:10,bouncy});
     }
   }
 }
@@ -312,11 +312,17 @@ function draw(){
   ctx.quadraticCurveTo(WORLD.right+18,345,WORLD.right-160,220);
   ctx.stroke();
 
-  // pegs (튀는/안튀는 타입)
+  // pegs (튀는/안튀는 타입) - 크게/선명하게
   for(const p of pegs){
-    ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
-    ctx.fillStyle=p.bouncy?'#ffb8c4':'#d8cdff';
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r+3,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,255,255,0.55)';
     ctx.fill();
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    ctx.fillStyle=p.bouncy?'#ff9db3':'#c9b8ff';
+    ctx.fill();
+    ctx.strokeStyle=p.bouncy?'#ff7394':'#a894ff';
+    ctx.lineWidth=2;
+    ctx.stroke();
   }
 
   // spinners
