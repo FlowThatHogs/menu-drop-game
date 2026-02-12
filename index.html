@@ -325,13 +325,10 @@ function draw(){
 
   // pegs (튀는/안튀는 타입) - 크게/선명하게
   for(const p of pegs){
-    ctx.beginPath();ctx.arc(p.x,p.y,p.r+1.8,0,Math.PI*2);
-    ctx.fillStyle='rgba(255,255,255,0.55)';
-    ctx.fill();
     ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
-    ctx.fillStyle='#cfc2ff';
+    ctx.fillStyle=p.bouncy?'#ffaec0':'#cfc2ff';
     ctx.fill();
-    ctx.strokeStyle='#a894ff';
+    ctx.strokeStyle=p.bouncy?'#ff7394':'#a894ff';
     ctx.lineWidth=2;
     ctx.stroke();
   }
@@ -339,9 +336,6 @@ function draw(){
 
   // side pegs (left/right walls)
   for(const p of sidePegs){
-    ctx.beginPath();ctx.arc(p.x,p.y,p.r+1.8,0,Math.PI*2);
-    ctx.fillStyle='rgba(255,255,255,0.55)';
-    ctx.fill();
     ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
     ctx.fillStyle='#cfc2ff';
     ctx.fill();
