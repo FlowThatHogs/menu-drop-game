@@ -83,7 +83,7 @@ const resetBtn=document.getElementById('resetBtn');
 const powerHint=document.getElementById('powerHint');
 const pressShoot=document.getElementById('pressShoot');
 
-let mode='lunch',pegs=[],sidePegs=[],slots=[],spinners=[],leftBumpers=[];
+let mode='lunch',pegs=[],slots=[],spinners=[];
 let ball=null,running=false,phase='idle';
 let holdStart=0,holdPower=0,holdVisual=0,cameraY=0,targetCameraY=0;
 
@@ -122,24 +122,13 @@ function buildPegs(){
   }
 }
 
-function buildSidePegs(){
-  sidePegs=[];
-  const startY=560, gap=240;
-  for(let y=startY;y<WORLD.bottom-760;y+=gap){
-    sidePegs.push({x:WORLD.left+30,y,r:8,bouncy:false});
-    sidePegs.push({x:WORLD.right-30,y,r:8,bouncy:false});
-  }
-}
 function buildSpinners(){
   spinners=[];
   const ys=[760,1780,2920,4060]; // 간격 대폭 증가
   ys.forEach((y,i)=>{spinners.push({x:(WORLD.left+WORLD.right)/2 + (i%2?120:-120),y,len:95,ang:i*0.7,speed:(i%2?0.028:-0.024),r:8})});
 }
 function buildExtraObstacles(){
-  // 왼쪽 벽 쪽 탄성 범퍼들
-  leftBumpers=[];
-  const ys=[520,980,1460,2040,2620,3200,3780];
-  ys.forEach((y,i)=>leftBumpers.push({x:WORLD.left+48+(i%2?18:0),y,r:16+(i%3===0?3:0)}));
+  // extra non-peg obstacles removed by request
 }
 
 function reset(){
@@ -217,7 +206,7 @@ function physics(){
     if(ball.x>WORLD.right-ball.r){ball.x=WORLD.right-ball.r; ball.vx*=-0.86}
     if(ball.y<WORLD.top+ball.r){ball.y=WORLD.top+ball.r; ball.vy*=-0.78}
 
-    for(const peg of [...pegs, ...sidePegs]){
+    for(const peg of pegs){
       const dx=ball.x-peg.x,dy=ball.y-peg.y,d=Math.hypot(dx,dy),md=ball.r+peg.r;
       if(d<md && d>0.001){
         const nx=dx/d,ny=dy/d;
@@ -250,19 +239,6 @@ function physics(){
         ball.vx*=0.95; ball.vy*=0.95;
       }
     }
-
-    // 왼쪽 범퍼: 명확히 튀는 타입
-    for(const b of leftBumpers){
-      const dx=ball.x-b.x,dy=ball.y-b.y,d=Math.hypot(dx,dy),md=ball.r+b.r;
-      if(d<md && d>0.001){
-        const nx=dx/d,ny=dy/d;
-        ball.x=b.x+nx*md; ball.y=b.y+ny*md;
-        const dot=ball.vx*nx+ball.vy*ny;
-        ball.vx=(ball.vx-1.7*dot*nx)*1.02;
-        ball.vy=(ball.vy-1.7*dot*ny)*1.02;
-      }
-    }
-
     // slow field removed
 
     // slot separator collisions near bottom
@@ -336,18 +312,6 @@ function draw(){
     ctx.lineWidth=2;
     ctx.stroke();
   }
-
-
-  // side pegs (left/right walls)
-  for(const p of sidePegs){
-    ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
-    ctx.fillStyle='#cfc2ff';
-    ctx.fill();
-    ctx.strokeStyle='#a894ff';
-    ctx.lineWidth=2;
-    ctx.stroke();
-  }
-
   // spinners
   for(const s of spinners){
     const ax=s.x+Math.cos(s.ang)*s.len, ay=s.y+Math.sin(s.ang)*s.len;
@@ -356,14 +320,6 @@ function draw(){
     ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
     ctx.beginPath(); ctx.arc(s.x,s.y,9,0,Math.PI*2); ctx.fillStyle='#ffcfd2'; ctx.fill();
   }
-
-  // left wall bumpers
-  for(const b of leftBumpers){
-    ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
-    ctx.fillStyle='#ff9eb6'; ctx.fill();
-    ctx.strokeStyle='#ff7ea0'; ctx.lineWidth=2; ctx.stroke();
-  }
-
   // no slow fields
 
   // slots bottom (taller)
@@ -475,7 +431,7 @@ function pressEnd(ev){if(!holdStart)return;ev.preventDefault();const dt=performa
 ['mousedown','touchstart','pointerdown'].forEach(evt=>pressShoot.addEventListener(evt,pressStart,{passive:false}));
 ['mouseup','mouseleave','touchend','pointerup','pointercancel'].forEach(evt=>pressShoot.addEventListener(evt,pressEnd,{passive:false}));
 
-buildPegs();buildSidePegs();buildSpinners();buildExtraObstacles();setMode('lunch');loop();
+buildPegs();buildSpinners();buildExtraObstacles();setMode('lunch');loop();
 </script>
 </body>
 </html>
