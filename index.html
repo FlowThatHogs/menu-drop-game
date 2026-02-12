@@ -99,21 +99,25 @@ function showResult(t){resultBox.innerHTML=`<div class="small">오늘의 ${mode=
 
 function buildPegs(){
   pegs=[];
-  const rows=28,rowGap=196,colGap=152,startY=360;
+  // 규칙적인 삼각 격자 패턴 (행마다 반칸 오프셋)
+  const rows=34, rowGap=156, colGap=124, startY=360;
+  const count=7;
   for(let r=0;r<rows;r++){
-    if(r<3) continue; // 관 출구 아래 3줄 비워서 걸림 완화
+    if(r<3) continue; // 관 출구 아래 3줄 비움
     const y=startY+r*rowGap;
-    if(y>WORLD.bottom-620) continue; // 하단 진입 방해 구간 더 크게 제거
-    const count=6+(r%6===0?1:0); // 좌우까지 퍼지게
+    if(y>WORLD.bottom-620) continue; // 하단 진입 구간 비움
+
     const rowWidth=(count-1)*colGap;
-    // 행이 내려갈수록 대각선 이동 느낌
-    const diagonalShift=(r*18)%120 - 60;
-    const center=(WORLD.left+WORLD.right)/2 + diagonalShift;
-    let startX=center-rowWidth/2;
+    const center=(WORLD.left+WORLD.right)/2;
+    const offset=(r%2===0?0:colGap/2);
+    let startX=center-rowWidth/2 - offset/2;
     startX=Math.max(WORLD.left+24,Math.min(startX,WORLD.right-rowWidth-24));
+
     for(let c=0;c<count;c++){
-      const bouncy=((r+c)%6===0);
-      pegs.push({x:startX+c*colGap,y,r:7,bouncy});
+      const x=startX + c*colGap + offset;
+      if(x<=WORLD.left+14 || x>=WORLD.right-14) continue;
+      const bouncy=((r+c)%7===0); // 일정 간격의 빨간 점
+      pegs.push({x,y,r:7,bouncy});
     }
   }
 }
