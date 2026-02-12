@@ -99,19 +99,21 @@ function showResult(t){resultBox.innerHTML=`<div class="small">오늘의 ${mode=
 
 function buildPegs(){
   pegs=[];
-  const rows=28,rowGap=196,colGap=172,startY=360;
+  const rows=28,rowGap=196,colGap=152,startY=360;
   for(let r=0;r<rows;r++){
     if(r<3) continue; // 관 출구 아래 3줄 비워서 걸림 완화
     const y=startY+r*rowGap;
     if(y>WORLD.bottom-620) continue; // 하단 진입 방해 구간 더 크게 제거
     const count=6+(r%6===0?1:0); // 좌우까지 퍼지게
     const rowWidth=(count-1)*colGap;
-    const center=(WORLD.left+WORLD.right)/2 + (r%2?20:-20);
+    // 행이 내려갈수록 대각선 이동 느낌
+    const diagonalShift=(r*18)%120 - 60;
+    const center=(WORLD.left+WORLD.right)/2 + diagonalShift;
     let startX=center-rowWidth/2;
-    startX=Math.max(WORLD.left+6,Math.min(startX,WORLD.right-rowWidth-6));
+    startX=Math.max(WORLD.left+24,Math.min(startX,WORLD.right-rowWidth-24));
     for(let c=0;c<count;c++){
       const bouncy=((r+c)%6===0);
-      pegs.push({x:startX+c*colGap,y,r:10,bouncy});
+      pegs.push({x:startX+c*colGap,y,r:7,bouncy});
     }
   }
 }
@@ -120,8 +122,8 @@ function buildSidePegs(){
   sidePegs=[];
   const startY=560, gap=240;
   for(let y=startY;y<WORLD.bottom-760;y+=gap){
-    sidePegs.push({x:WORLD.left+26,y,r:12,bouncy:false});
-    sidePegs.push({x:WORLD.right-26,y,r:12,bouncy:false});
+    sidePegs.push({x:WORLD.left+30,y,r:8,bouncy:false});
+    sidePegs.push({x:WORLD.right-30,y,r:8,bouncy:false});
   }
 }
 function buildSpinners(){
@@ -323,11 +325,11 @@ function draw(){
 
   // pegs (튀는/안튀는 타입) - 크게/선명하게
   for(const p of pegs){
-    ctx.beginPath();ctx.arc(p.x,p.y,p.r+3,0,Math.PI*2);
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r+1.8,0,Math.PI*2);
     ctx.fillStyle='rgba(255,255,255,0.55)';
     ctx.fill();
     ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
-    ctx.fillStyle=p.bouncy?'#ff9db3':'#c9b8ff';
+    ctx.fillStyle=p.bouncy?'#ffaec0':'#cfc2ff';
     ctx.fill();
     ctx.strokeStyle=p.bouncy?'#ff7394':'#a894ff';
     ctx.lineWidth=2;
@@ -337,7 +339,7 @@ function draw(){
 
   // side pegs (left/right walls)
   for(const p of sidePegs){
-    ctx.beginPath();ctx.arc(p.x,p.y,p.r+3,0,Math.PI*2);
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r+1.8,0,Math.PI*2);
     ctx.fillStyle='rgba(255,255,255,0.55)';
     ctx.fill();
     ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
