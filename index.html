@@ -111,11 +111,11 @@ function buildPegs(){
     const center=(WORLD.left+WORLD.right)/2;
     const offset=(r%2===0?0:colGap/2);
     let startX=center-rowWidth/2 - offset/2;
-    startX=Math.max(WORLD.left+24,Math.min(startX,WORLD.right-rowWidth-24));
+    startX=Math.max(WORLD.left+72,Math.min(startX,WORLD.right-rowWidth-72));
 
     for(let c=0;c<count;c++){
       const x=startX + c*colGap + offset;
-      if(x<=WORLD.left+14 || x>=WORLD.right-14) continue;
+      if(x<=WORLD.left+88 || x>=WORLD.right-88) continue;
       const bouncy=((r+c)%7===0); // 일정 간격의 빨간 점
       pegs.push({x,y,r:7,bouncy});
     }
@@ -202,8 +202,8 @@ function physics(){
     ball.rotVel *= 0.985;
     ball.rot += ball.rotVel;
 
-    if(ball.x<WORLD.left+ball.r){ball.x=WORLD.left+ball.r; ball.vx*=-0.86}
-    if(ball.x>WORLD.right-ball.r){ball.x=WORLD.right-ball.r; ball.vx*=-0.86}
+    if(ball.x<WORLD.left+ball.r){ball.x=WORLD.left+ball.r; ball.vx=Math.abs(ball.vx)*0.75}
+    if(ball.x>WORLD.right-ball.r){ball.x=WORLD.right-ball.r; ball.vx=-Math.abs(ball.vx)*0.75}
     if(ball.y<WORLD.top+ball.r){ball.y=WORLD.top+ball.r; ball.vy*=-0.78}
 
     for(const peg of pegs){
@@ -410,9 +410,9 @@ function draw(){
     ctx.stroke();
 
     // cheek blush (farther from beak)
-    ctx.fillStyle='rgba(255,150,180,0.32)';
-    ctx.beginPath(); ctx.arc(-16,9,3.4,0,Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(16,9,3.4,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(255,140,180,0.45)';
+    ctx.beginPath(); ctx.arc(-20,12,5.8,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(20,12,5.8,0,Math.PI*2); ctx.fill();
 
     ctx.restore();
   }
