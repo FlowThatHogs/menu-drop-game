@@ -83,7 +83,7 @@ const resetBtn=document.getElementById('resetBtn');
 const powerHint=document.getElementById('powerHint');
 const pressShoot=document.getElementById('pressShoot');
 
-let mode='lunch',pegs=[],slots=[],spinners=[],leftBumpers=[];
+let mode='lunch',pegs=[],sidePegs=[],slots=[],spinners=[],leftBumpers=[];
 let ball=null,running=false,phase='idle';
 let holdStart=0,holdPower=0,holdVisual=0,cameraY=0,targetCameraY=0;
 
@@ -113,6 +113,15 @@ function buildPegs(){
       const bouncy=((r+c)%6===0);
       pegs.push({x:startX+c*colGap,y,r:10,bouncy});
     }
+  }
+}
+
+function buildSidePegs(){
+  sidePegs=[];
+  const startY=560, gap=240;
+  for(let y=startY;y<WORLD.bottom-760;y+=gap){
+    sidePegs.push({x:WORLD.left+26,y,r:12,bouncy:false});
+    sidePegs.push({x:WORLD.right-26,y,r:12,bouncy:false});
   }
 }
 function buildSpinners(){
@@ -202,7 +211,7 @@ function physics(){
     if(ball.x>WORLD.right-ball.r){ball.x=WORLD.right-ball.r; ball.vx*=-0.86}
     if(ball.y<WORLD.top+ball.r){ball.y=WORLD.top+ball.r; ball.vy*=-0.78}
 
-    for(const peg of pegs){
+    for(const peg of [...pegs, ...sidePegs]){
       const dx=ball.x-peg.x,dy=ball.y-peg.y,d=Math.hypot(dx,dy),md=ball.r+peg.r;
       if(d<md && d>0.001){
         const nx=dx/d,ny=dy/d;
@@ -321,6 +330,20 @@ function draw(){
     ctx.fillStyle=p.bouncy?'#ff9db3':'#c9b8ff';
     ctx.fill();
     ctx.strokeStyle=p.bouncy?'#ff7394':'#a894ff';
+    ctx.lineWidth=2;
+    ctx.stroke();
+  }
+
+
+  // side pegs (left/right walls)
+  for(const p of sidePegs){
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r+3,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,255,255,0.55)';
+    ctx.fill();
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    ctx.fillStyle='#b8d7ff';
+    ctx.fill();
+    ctx.strokeStyle='#86b8ff';
     ctx.lineWidth=2;
     ctx.stroke();
   }
@@ -452,7 +475,7 @@ function pressEnd(ev){if(!holdStart)return;ev.preventDefault();const dt=performa
 ['mousedown','touchstart','pointerdown'].forEach(evt=>pressShoot.addEventListener(evt,pressStart,{passive:false}));
 ['mouseup','mouseleave','touchend','pointerup','pointercancel'].forEach(evt=>pressShoot.addEventListener(evt,pressEnd,{passive:false}));
 
-buildPegs();buildSpinners();buildExtraObstacles();setMode('lunch');loop();
+buildPegs();buildSidePegs();buildSpinners();buildExtraObstacles();setMode('lunch');loop();
 </script>
 </body>
 </html>
