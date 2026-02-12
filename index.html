@@ -29,6 +29,21 @@
   </style>
   <!-- TODO: Replace ca-pub-XXXXXXXXXXXX with your AdSense publisher ID -->
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXX" crossorigin="anonymous"></script>
+  <script>
+    // Cache-busting: keep users on latest build URL
+    (function () {
+      var BUILD_VERSION = '20260213-1';
+      try {
+        var u = new URL(window.location.href);
+        var current = u.searchParams.get('v');
+        if (current !== BUILD_VERSION) {
+          u.searchParams.set('v', BUILD_VERSION);
+          window.location.replace(u.toString());
+        }
+      } catch (e) {}
+    })();
+  </script>
+
 </head>
 <body>
 <div class="app">
